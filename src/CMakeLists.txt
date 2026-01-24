@@ -2,9 +2,10 @@ cmake_policy(SET CMP0091 NEW)
 set(CMAKE_POLICY_DEFAULT_CMP0091 NEW)
 set(CMAKE_MSVC_RUNTIME_LIBRARY "MultiThreaded$<$<CONFIG:Debug>:Debug>")
 
-project(realcugan-ncnn-vulkan)
-
 cmake_minimum_required(VERSION 3.9)
+set(CMAKE_POLICY_VERSION_MINIMUM 3.10)
+
+project(realcugan-ncnn-vulkan)
 
 if(NOT CMAKE_BUILD_TYPE)
     set(CMAKE_BUILD_TYPE release CACHE STRING "Choose the type of build" FORCE)
@@ -18,7 +19,7 @@ find_package(Threads)
 find_package(OpenMP)
 find_package(Vulkan REQUIRED)
 
-macro(realcugan_add_shader SHADER_SRC)
+macro(compile_shader SHADER_SRC)
     get_filename_component(SHADER_SRC_NAME_WE ${SHADER_SRC} NAME_WE)
     set(SHADER_COMP_HEADER ${CMAKE_CURRENT_BINARY_DIR}/${SHADER_SRC_NAME_WE}.comp.hex.h)
 
@@ -239,22 +240,26 @@ if(NOT USE_SYSTEM_WEBP)
     include_directories(${CMAKE_CURRENT_SOURCE_DIR}/libwebp/src)
 endif()
 
-realcugan_add_shader(realcugan_preproc.comp)
-realcugan_add_shader(realcugan_postproc.comp)
-realcugan_add_shader(realcugan_4x_postproc.comp)
-realcugan_add_shader(realcugan_preproc_tta.comp)
-realcugan_add_shader(realcugan_postproc_tta.comp)
-realcugan_add_shader(realcugan_4x_postproc_tta.comp)
+compile_shader(realcugan_preproc.comp)
+compile_shader(realcugan_postproc.comp)
+compile_shader(realcugan_4x_postproc.comp)
+compile_shader(realcugan_preproc_tta.comp)
+compile_shader(realcugan_postproc_tta.comp)
+compile_shader(realcugan_4x_postproc_tta.comp)
 
 add_custom_target(generate-spirv DEPENDS ${SHADER_SPV_HEX_FILES})
 
-add_executable(realcugan-ncnn-vulkan main.cpp realcugan.cpp)
+add_executable(${PROJECT_NAME} main.cpp realcugan.cpp)
 
-set_property(TARGET realcugan-ncnn-vulkan PROPERTY CXX_STANDARD 11)
+set_property(TARGET ${PROJECT_NAME} PROPERTY CXX_STANDARD 11)
 
-add_dependencies(realcugan-ncnn-vulkan generate-spirv)
+if(MINGW)
+    target_link_options(${PROJECT_NAME} PRIVATE -municode -mconsole)
+endif()
 
-set(REALCUGAN_LINK_LIBRARIES ncnn webp ${Vulkan_LIBRARY})
+add_dependencies(${PROJECT_NAME} generate-spirv)
+
+set(PROJECT_LINK_LIBRARIES ncnn webp ${Vulkan_LIBRARY})
 
 if(USE_STATIC_MOLTENVK)
     find_library(CoreFoundation NAMES CoreFoundation)
@@ -266,7 +271,7 @@ if(USE_STATIC_MOLTENVK)
     find_library(IOKit NAMES IOKit)
     find_library(IOSurface NAMES IOSurface)
 
-    list(APPEND REALCUGAN_LINK_LIBRARIES
+    list(APPEND PROJECT_LINK_LIBRARIES
         ${Metal}
         ${QuartzCore}
         ${CoreGraphics}
@@ -278,4 +283,4 @@ if(USE_STATIC_MOLTENVK)
     )
 endif()
 
-target_link_libraries(realcugan-ncnn-vulkan ${REALCUGAN_LINK_LIBRARIES})
+target_link_libraries(${PROJECT_NAME} ${PROJECT_LINK_LIBRARIES})
