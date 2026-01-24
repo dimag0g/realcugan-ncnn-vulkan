@@ -5,6 +5,7 @@ set(CMAKE_MSVC_RUNTIME_LIBRARY "MultiThreaded$<$<CONFIG:Debug>:Debug>")
 project(realcugan-ncnn-vulkan)
 
 cmake_minimum_required(VERSION 3.9)
+set(CMAKE_POLICY_VERSION_MINIMUM 3.10)
 
 if(NOT CMAKE_BUILD_TYPE)
     set(CMAKE_BUILD_TYPE release CACHE STRING "Choose the type of build" FORCE)
