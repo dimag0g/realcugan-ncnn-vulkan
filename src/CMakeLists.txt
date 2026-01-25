@@ -1,8 +1,9 @@
 cmake_policy(SET CMP0091 NEW)
 set(CMAKE_POLICY_DEFAULT_CMP0091 NEW)
 set(CMAKE_MSVC_RUNTIME_LIBRARY "MultiThreaded$<$<CONFIG:Debug>:Debug>")
+set(CMAKE_EXPORT_COMPILE_COMMANDS ON)
 
-project(realcugan-ncnn-vulkan)
+project(AviSynthPlus-realcugan)
 
 cmake_minimum_required(VERSION 3.9)
 set(CMAKE_POLICY_VERSION_MINIMUM 3.10)
@@ -12,12 +13,27 @@ if(NOT CMAKE_BUILD_TYPE)
 endif()
 
 option(USE_SYSTEM_NCNN "build with system libncnn" OFF)
-option(USE_SYSTEM_WEBP "build with system libwebp" OFF)
 option(USE_STATIC_MOLTENVK "link moltenvk static library" OFF)
 
 find_package(Threads)
 find_package(OpenMP)
 find_package(Vulkan REQUIRED)
+
+list(APPEND CMAKE_MODULE_PATH "${CMAKE_CURRENT_SOURCE_DIR}")
+find_package(AvisynthPlus REQUIRED)
+
+find_package(Boost 1.81...1.83 COMPONENTS dll)
+if(NOT Boost_FOUND)
+    if(NOT EXISTS "${CMAKE_BINARY_DIR}/boost-1.82.0")
+        message(STATUS "Boost not found. Downloading Boost...")
+        set(BOOST_ZIP "${CMAKE_BINARY_DIR}/boost.zip")
+        file(DOWNLOAD "https://github.com/boostorg/boost/releases/download/boost-1.82.0/boost-1.82.0.zip" "${BOOST_ZIP}" SHOW_PROGRESS)
+        file(ARCHIVE_EXTRACT INPUT "${BOOST_ZIP}" DESTINATION "${CMAKE_BINARY_DIR}")
+        file(REMOVE "${BOOST_ZIP}")
+    endif()
+	set(CMAKE_POSITION_INDEPENDENT_CODE ON)
+    add_subdirectory(${CMAKE_BINARY_DIR}/boost-1.82.0 ${CMAKE_BINARY_DIR}/boost-build )
+endif()
 
 macro(realcugan_add_shader SHADER_SRC)
     get_filename_component(SHADER_SRC_NAME_WE ${SHADER_SRC} NAME_WE)
@@ -206,40 +222,6 @@ if(NOT USE_SYSTEM_NCNN)
     add_subdirectory(ncnn)
 endif()
 
-if(USE_SYSTEM_WEBP)
-    set(CMAKE_MODULE_PATH "${CMAKE_CURRENT_SOURCE_DIR}")
-    find_package(WebP)
-    if(NOT TARGET webp)
-        message(WARNING "webp target not found! USE_SYSTEM_WEBP will be turned off.")
-        set(USE_SYSTEM_WEBP OFF)
-    endif()
-endif()
-
-if(NOT USE_SYSTEM_WEBP)
-    # build libwebp library
-    if(NOT EXISTS "${CMAKE_CURRENT_SOURCE_DIR}/libwebp/CMakeLists.txt")
-        message(FATAL_ERROR "The submodules were not downloaded! Please update submodules with \"git submodule update --init --recursive\" and try again.")
-    endif()
-
-    option(WEBP_ENABLE_SIMD "" ON)
-    option(WEBP_BUILD_ANIM_UTILS "" OFF)
-    option(WEBP_BUILD_CWEBP "" OFF)
-    option(WEBP_BUILD_DWEBP "" OFF)
-    option(WEBP_BUILD_GIF2WEBP "" OFF)
-    option(WEBP_BUILD_IMG2WEBP "" OFF)
-    option(WEBP_BUILD_VWEBP "" OFF)
-    option(WEBP_BUILD_WEBPINFO "" OFF)
-    option(WEBP_BUILD_WEBPMUX "" OFF)
-    option(WEBP_BUILD_EXTRAS "" OFF)
-    option(WEBP_BUILD_WEBP_JS "" OFF)
-    option(WEBP_NEAR_LOSSLESS "" OFF)
-    option(WEBP_ENABLE_SWAP_16BIT_CSP "" OFF)
-
-    add_subdirectory(libwebp)
-
-    include_directories(${CMAKE_CURRENT_SOURCE_DIR}/libwebp/src)
-endif()
-
 realcugan_add_shader(realcugan_preproc.comp)
 realcugan_add_shader(realcugan_postproc.comp)
 realcugan_add_shader(realcugan_4x_postproc.comp)
@@ -249,13 +231,16 @@ realcugan_add_shader(realcugan_4x_postproc_tta.comp)
 
 add_custom_target(generate-spirv DEPENDS ${SHADER_SPV_HEX_FILES})
 
-add_executable(realcugan-ncnn-vulkan main.cpp realcugan.cpp)
+add_library(AviSynthPlus-realcugan SHARED plugin.cpp realcugan.cpp)
 
-set_property(TARGET realcugan-ncnn-vulkan PROPERTY CXX_STANDARD 11)
+set_property(TARGET AviSynthPlus-realcugan PROPERTY CXX_STANDARD 20)
+set_source_files_properties(plugin.cpp PROPERTIES
+    COMPILE_FLAGS "-fexceptions"
+)
 
-add_dependencies(realcugan-ncnn-vulkan generate-spirv)
+add_dependencies(AviSynthPlus-realcugan generate-spirv)
 
-set(REALCUGAN_LINK_LIBRARIES ncnn webp ${Vulkan_LIBRARY})
+set(REALCUGAN_LINK_LIBRARIES ncnn ${Vulkan_LIBRARY})
 
 if(USE_STATIC_MOLTENVK)
     find_library(CoreFoundation NAMES CoreFoundation)
@@ -279,4 +264,7 @@ if(USE_STATIC_MOLTENVK)
     )
 endif()
 
-target_link_libraries(realcugan-ncnn-vulkan ${REALCUGAN_LINK_LIBRARIES})
+target_link_libraries(AviSynthPlus-realcugan PRIVATE ${REALCUGAN_LINK_LIBRARIES}
+	Boost::dll
+    AvsCore
+)
