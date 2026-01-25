@@ -5,19 +5,34 @@ set(CMAKE_MSVC_RUNTIME_LIBRARY "MultiThreaded$<$<CONFIG:Debug>:Debug>")
 cmake_minimum_required(VERSION 3.9)
 set(CMAKE_POLICY_VERSION_MINIMUM 3.10)
 
-project(realcugan-ncnn-vulkan)
+project(AviSynthPlus-realcugan)
 
 if(NOT CMAKE_BUILD_TYPE)
     set(CMAKE_BUILD_TYPE release CACHE STRING "Choose the type of build" FORCE)
 endif()
 
 option(USE_SYSTEM_NCNN "build with system libncnn" OFF)
-option(USE_SYSTEM_WEBP "build with system libwebp" OFF)
 option(USE_STATIC_MOLTENVK "link moltenvk static library" OFF)
 
 find_package(Threads)
 find_package(OpenMP)
 find_package(Vulkan REQUIRED)
+
+list(APPEND CMAKE_MODULE_PATH "${CMAKE_CURRENT_SOURCE_DIR}")
+find_package(AvisynthPlus REQUIRED)
+
+find_package(Boost 1.81...1.83 COMPONENTS dll)
+if(NOT Boost_FOUND)
+    if(NOT EXISTS "${CMAKE_BINARY_DIR}/boost-1.82.0")
+        message(STATUS "Boost not found. Downloading Boost...")
+        set(BOOST_ZIP "${CMAKE_BINARY_DIR}/boost.zip")
+        file(DOWNLOAD "https://github.com/boostorg/boost/releases/download/boost-1.82.0/boost-1.82.0.zip" "${BOOST_ZIP}" SHOW_PROGRESS)
+        file(ARCHIVE_EXTRACT INPUT "${BOOST_ZIP}" DESTINATION "${CMAKE_BINARY_DIR}")
+        file(REMOVE "${BOOST_ZIP}")
+    endif()
+	set(CMAKE_POSITION_INDEPENDENT_CODE ON)
+    add_subdirectory(${CMAKE_BINARY_DIR}/boost-1.82.0 ${CMAKE_BINARY_DIR}/boost-build )
+endif()
 
 macro(compile_shader SHADER_SRC)
     get_filename_component(SHADER_SRC_NAME_WE ${SHADER_SRC} NAME_WE)
@@ -249,13 +264,13 @@ compile_shader(realcugan_4x_postproc_tta.comp)
 
 add_custom_target(generate-spirv DEPENDS ${SHADER_SPV_HEX_FILES})
 
-add_executable(${PROJECT_NAME} main.cpp realcugan.cpp)
+add_library(${PROJECT_NAME} SHARED plugin.cpp realcugan.cpp)
 
-set_property(TARGET ${PROJECT_NAME} PROPERTY CXX_STANDARD 11)
+set_property(TARGET ${PROJECT_NAME} PROPERTY CXX_STANDARD 20)
 
-if(MINGW)
-    target_link_options(${PROJECT_NAME} PRIVATE -municode -mconsole)
-endif()
+set_source_files_properties(plugin.cpp PROPERTIES
+    COMPILE_FLAGS "-fexceptions"
+)
 
 add_dependencies(${PROJECT_NAME} generate-spirv)
 
@@ -283,4 +298,7 @@ if(USE_STATIC_MOLTENVK)
     )
 endif()
 
-target_link_libraries(${PROJECT_NAME} ${PROJECT_LINK_LIBRARIES})
+target_link_libraries(${PROJECT_NAME} ${PROJECT_LINK_LIBRARIES}
+    Boost::dll
+    AvsCore
+)
