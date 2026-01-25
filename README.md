@@ -1,63 +1,48 @@
-# Real-CUGAN ncnn Vulkan
-
-:exclamation: :exclamation: :exclamation: This software is in the early development stage, it may bite your cat
-
-![CI](https://github.com/nihui/realcugan-ncnn-vulkan/workflows/CI/badge.svg)
-![download](https://img.shields.io/github/downloads/nihui/realcugan-ncnn-vulkan/total.svg)
+# Real-CUGAN ncnn Vulkan plugin for AviSynth+
 
 ncnn implementation of Real-CUGAN converter. Runs fast on Intel / AMD / Nvidia / Apple-Silicon with Vulkan API.
+This repo provides AviSynth+ plugin implementing Real-CUGAN in `avisyth` branch.
 
-realcugan-ncnn-vulkan uses [ncnn project](https://github.com/Tencent/ncnn) as the universal neural network inference framework.
-
-## [Download](https://github.com/nihui/realcugan-ncnn-vulkan/releases)
+## [Download](https://github.com/dimag0g/realcugan-ncnn-vulkan/releases)
 
 Download Windows/Linux/MacOS Executable for Intel/AMD/Nvidia/Apple-Silicon GPU
 
-**https://github.com/nihui/realcugan-ncnn-vulkan/releases**
-
 This package includes all the binaries and models required. It is portable, so no CUDA or PyTorch runtime environment is needed :)
 
-## About Real-CUGAN
-
-Real-CUGAN (Real Cascade U-Nets for Anime Image Super Resolution)
-
-https://github.com/bilibili/ailab/tree/main/Real-CUGAN
 
 ## Usages
 
-### Example Command
+### Example avs script
 
-```shell
-realcugan-ncnn-vulkan.exe -i input.jpg -o output.png
+```avs
+LoadPlugin("AviSynthPlus-realcugan-x64.dll")
+FFVideoSource("test.mkv") # or AviSource("test.avi")
+ConvertToRGB32()
+realcugan(noise=0, scale=2)
+ConvertToYV12(matrix="PC.709")
 ```
 
-### Full Usages
+### Supported parameters
 
-```console
-Usage: realcugan-ncnn-vulkan -i infile -o outfile [options]...
-
-  -h                   show this help
-  -v                   verbose output
-  -i input-path        input image path (jpg/png/webp) or directory
-  -o output-path       output image path (jpg/png/webp) or directory
-  -n noise-level       denoise level (-1/0/1/2/3, default=-1)
-  -s scale             upscale ratio (1/2/3/4, default=2)
-  -t tile-size         tile size (>=32/0=auto, default=0) can be 0,0,0 for multi-gpu
-  -c syncgap-mode      sync gap mode (0/1/2/3, default=3)
-  -m model-path        realcugan model path (default=models-se)
-  -g gpu-id            gpu device to use (-1=cpu, default=auto) can be 0,1,2 for multi-gpu
-  -j load:proc:save    thread count for load/proc/save (default=1:2:2) can be 1:2,2,2:2 for multi-gpu
-  -x                   enable tta mode
-  -f format            output image format (jpg/png/webp, default=ext/png)
-```
-
-- `input-path` and `output-path` accept either file path or directory path
-- `noise-level` = noise level, large value means strong denoise effect, -1 = no effect
+- `noise` = noise level, large value means strong denoise effect, -1 = no effect
 - `scale` = scale level, 1 = no scaling, 2 = upscale 2x
-- `tile-size` = tile size, use smaller value to reduce GPU memory usage, default selects automatically
-- `syncgap-mode` = sync gap mode, 0 = no sync, 1 = accurate sync, 2 = rough sync, 3 = very rough sync
-- `load:proc:save` = thread count for the three stages (image decoding + realcugan upscaling + image encoding), using larger values may increase GPU usage and consume more GPU memory. You can tune this configuration with "4:4:4" for many small-size images, and "2:2:2" for large-size images. The default setting usually works fine for most situations. If you find that your GPU is hungry, try increasing thread count to achieve faster processing.
-- `format` = the format of the image to be output, png is better supported, however webp generally yields smaller file sizes, both are losslessly encoded
+- `model` = model directory to use, 0: "models-nose", 1: "models-pro" 2: "models-se", default = 2.
+- `tilesize` = tile size (min = 32), use smaller value to reduce GPU memory usage, default selects automatically
+- `gpu_thread` = thread count for the realcugan upscaling, using larger values increases GPU usage and consumes more GPU memory, default is one.
+- `list_gpu` = simply prints a list of available GPU devices on the frame and does nothing else.
+
+Not yet supported: `sync` = sync gap mode, 0 = no sync, 1 = accurate sync, 2 = rough sync, 3 = very rough sync
+
+
+### Troubleshooting
+
+If you increase `gpu_thread`, don't forget to tell AviSynth+ to spawn several threads for your filter:
+
+```avs
+realcugan(noise=0, scale=2, gpu_thread=2)
+SetFilterMTMode("realcugan", MT_MULTI_INSTANCE)
+Prefetch(2)
+```
 
 If you encounter a crash or error, try upgrading your GPU driver:
 
@@ -82,9 +67,9 @@ pacman -S vulkan-headers vulkan-icd-loader
 2. Clone this project with all submodules
 
 ```shell
-git clone https://github.com/nihui/realcugan-ncnn-vulkan.git
+git clone --recurse-submodules https://github.com/dimag0g/realcugan-ncnn-vulkan
 cd realcugan-ncnn-vulkan
-git submodule update --init --recursive
+git switch avisynth
 ```
 
 3. Build with CMake
@@ -97,24 +82,20 @@ cmake ../src
 cmake --build . -j 4
 ```
 
+On Windows, you can build with Visual Studio by simply opening the `src` directory.
+CMake should automatically configure the project when you do.
+Once the project is configured, right-click on CMakeLists.txt and pick "Build".
+
 ## Sample Images
 
 ### Original Image
 
 ![origin](images/0.jpg)
 
-### Upscale 2x with ImageMagick
+### Upscale 2x Lanczos Filter
 
-```shell
-convert origin.jpg -resize 200% output.png
-```
-
-![browser](images/1.png)
-
-### Upscale 2x with ImageMagick Lanczo4 Filter
-
-```shell
-convert origin.jpg -filter Lanczos -resize 200% output.png
+```avs
+LanczosResize(width * 2, height * 2)
 ```
 
 ![browser](images/4.png)
@@ -122,14 +103,17 @@ convert origin.jpg -filter Lanczos -resize 200% output.png
 ### Upscale 2x with Real-CUGAN
 
 ```shell
-realcugan-ncnn-vulkan.exe -i origin.jpg -o output.png -s 2 -n 1 -x
+realcugan(noise=0, scale=2)
 ```
 
 ![realcugan](images/2.png)
 
 ## Original Real-CUGAN Project
 
+Real-CUGAN (Real Cascade U-Nets for Anime Image Super Resolution)
+
 - https://github.com/bilibili/ailab/tree/main/Real-CUGAN
+- https://github.com/nihui/realcugan-ncnn-vulkan
 
 ## Other Open-Source Code Used
 
@@ -137,3 +121,4 @@ realcugan-ncnn-vulkan.exe -i origin.jpg -o output.png -s 2 -n 1 -x
 - https://github.com/webmproject/libwebp for encoding and decoding Webp images on ALL PLATFORMS
 - https://github.com/nothings/stb for decoding and encoding image on Linux / MacOS
 - https://github.com/tronkko/dirent for listing files in directory on Windows
+- https://github.com/boostorg/boost for loading shared libraries at runtime
