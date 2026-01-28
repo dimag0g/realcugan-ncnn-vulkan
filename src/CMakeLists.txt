@@ -22,19 +22,6 @@ find_package(Vulkan REQUIRED)
 list(APPEND CMAKE_MODULE_PATH "${CMAKE_CURRENT_SOURCE_DIR}")
 find_package(AvisynthPlus REQUIRED)
 
-find_package(Boost 1.81...1.83 COMPONENTS dll)
-if(NOT Boost_FOUND)
-    if(NOT EXISTS "${CMAKE_BINARY_DIR}/boost-1.82.0")
-        message(STATUS "Boost not found. Downloading Boost...")
-        set(BOOST_ZIP "${CMAKE_BINARY_DIR}/boost.zip")
-        file(DOWNLOAD "https://github.com/boostorg/boost/releases/download/boost-1.82.0/boost-1.82.0.zip" "${BOOST_ZIP}" SHOW_PROGRESS)
-        file(ARCHIVE_EXTRACT INPUT "${BOOST_ZIP}" DESTINATION "${CMAKE_BINARY_DIR}")
-        file(REMOVE "${BOOST_ZIP}")
-    endif()
-	set(CMAKE_POSITION_INDEPENDENT_CODE ON)
-    add_subdirectory(${CMAKE_BINARY_DIR}/boost-1.82.0 ${CMAKE_BINARY_DIR}/boost-build )
-endif()
-
 macro(realcugan_add_shader SHADER_SRC)
     get_filename_component(SHADER_SRC_NAME_WE ${SHADER_SRC} NAME_WE)
     set(SHADER_COMP_HEADER ${CMAKE_CURRENT_BINARY_DIR}/${SHADER_SRC_NAME_WE}.comp.hex.h)
@@ -265,6 +252,5 @@ if(USE_STATIC_MOLTENVK)
 endif()
 
 target_link_libraries(AviSynthPlus-realcugan PRIVATE ${REALCUGAN_LINK_LIBRARIES}
-	Boost::dll
     AvsCore
 )
