@@ -32,8 +32,14 @@
 #include <vector>
 
 #include "avisynth_c.h"
-#include "boost/dll/runtime_symbol_info.hpp"
 #include "realcugan.h"
+
+#ifdef _WIN32
+  #define WIN32_LEAN_AND_MEAN
+  #include <windows.h>
+#else // Linux / Mac OS
+  #include <dlfcn.h>
+#endif
 
 using namespace std::literals;
 
@@ -90,6 +96,69 @@ static int AVSC_CC realcugan_set_cache_hints(AVS_FilterInfo* fi, int cachehints,
     return cachehints == AVS_CACHE_GET_MTMODE ? 2 : 0;
 }
 
+// Helper function for Create_realcugan()
+std::string get_plugin_directory() {
+#ifdef _WIN32
+    // --- Windows Implementation ---
+    HMODULE hModule = NULL;
+    
+    // Get a handle to the current DLL.
+    // We use GET_MODULE_HANDLE_EX_FLAG_FROM_ADDRESS to get a handle to the module
+    // that contains the specified address. We pass the address of this very function.
+    if (!GetModuleHandleExA(
+            GET_MODULE_HANDLE_EX_FLAG_FROM_ADDRESS | GET_MODULE_HANDLE_EX_FLAG_UNCHANGED_REFCOUNT,
+            (LPCSTR)&get_plugin_directory, 
+            &hModule)) {
+        return "."; // Could not get module handle
+    }
+
+    // Get the full path of the module (DLL).
+    // We use a vector-based buffer to dynamically handle long paths.
+    std::vector<char> path_buffer(MAX_PATH);
+    DWORD path_len = 0;
+    do {
+        path_len = GetModuleFileNameA(hModule, path_buffer.data(), path_buffer.size());
+        if (path_len == path_buffer.size()) {
+            // The buffer was too small, double its size and try again.
+            path_buffer.resize(path_buffer.size() * 2);
+        }
+    } while (path_len >= path_buffer.size());
+    
+    std::string full_path(path_buffer.data(), path_len);
+
+    // Find the last path separator.
+    size_t last_separator = full_path.find_last_of("\\/");
+    if (std::string::npos == last_separator) {
+        return "."; // No separator found
+    }
+
+    // Return the substring up to the last separator (the directory).
+    return full_path.substr(0, last_separator);
+
+#else
+    // --- Linux / Mac OS Implementation ---
+    Dl_info info;
+    
+    // dladdr takes a function pointer and returns information about the
+    // shared object that contains it.
+    if (dladdr((void*)&get_plugin_directory, &info) != 0 && info.dli_fname) {
+        // info.dli_fname is the full path to the .so file.
+        std::string full_path(info.dli_fname);
+
+        // Find the last path separator.
+        size_t last_separator = full_path.find_last_of('/');
+        if (std::string::npos == last_separator) {
+            return "."; // No separator found
+        }
+        
+        // Return the substring up to the last separator (the directory).
+        return full_path.substr(0, last_separator);
+    } else {
+        return "."; // dladdr failed
+    }
+#endif
+}
+
 static AVS_Value AVSC_CC Create_realcugan(AVS_ScriptEnvironment* env, AVS_Value args, void* param)
 {
     enum { Clip, Noise, Scale, Tilesize, Model, Gpu_id, Gpu_thread, Tta, List_gpu };
@@ -100,16 +169,12 @@ static AVS_Value AVSC_CC Create_realcugan(AVS_ScriptEnvironment* env, AVS_Value 
     AVS_Value v{ avs_void };
 
     try {
-        if (!avs_check_version(env, 9))
+        if (avs_check_version(env, 11))
         {
-            if (avs_check_version(env, 10))
-            {
-                if (avs_get_env_property(env, AVS_AEP_INTERFACE_BUGFIX) < 2)
+            if (avs_check_version(env, 10) ||
+                avs_get_env_property(env, AVS_AEP_INTERFACE_BUGFIX) < 2)
                     throw "AviSynth+ version must be r3688 or later.";
-            }
         }
-        else
-            throw "AviSynth+ version must be r3688 or later.";
 
         if (avs_is_planar(&d->fi->vi) ||
             !avs_is_rgb(&d->fi->vi) ||
@@ -174,27 +239,7 @@ static AVS_Value AVSC_CC Create_realcugan(AVS_ScriptEnvironment* env, AVS_Value 
         d->fi->vi.width *= scale;
         d->fi->vi.height *= scale;
 
-        auto modelDir{ boost::dll::this_line_location().parent_path().generic_string() + "/models" };
         int prepadding{};
-
-        switch (model)
-        {
-            case 0:
-            {
-                modelDir += "/models-nose";
-                break;
-            }
-            case 1:
-            {
-                modelDir += "/models-pro";
-                break;
-            }
-            case 2:
-            {
-                modelDir += "/models-se";
-                break;
-            }
-        }
 
         if (scale == 2)
         {
@@ -209,28 +254,57 @@ static AVS_Value AVSC_CC Create_realcugan(AVS_ScriptEnvironment* env, AVS_Value 
             prepadding = 19;
         }
 
-        std::string paramPath, modelPath;
+        std::string modelDir, paramPath, modelPath;
+		
+        switch (model)
+        {
+            case 0:
+            {
+                modelPath = "/models-nose";
+                break;
+            }
+            case 1:
+            {
+                modelPath = "/models-pro";
+                break;
+            }
+            case 2:
+            {
+                modelPath = "/models-se";
+                break;
+            }
+        }
 
         if (noise == -1)
         {
-            paramPath = modelDir + "/up" + std::to_string(scale) + "x-conservative.param";
-            modelPath = modelDir + "/up" + std::to_string(scale) + "x-conservative.bin";
+            paramPath = modelPath + "/up" + std::to_string(scale) + "x-conservative.param";
+            modelPath = modelPath + "/up" + std::to_string(scale) + "x-conservative.bin";
         }
         else if (noise == 0)
         {
-            paramPath = modelDir + "/up" + std::to_string(scale) + "x-no-denoise.param";
-            modelPath = modelDir + "/up" + std::to_string(scale) + "x-no-denoise.bin";
+            paramPath = modelPath + "/up" + std::to_string(scale) + "x-no-denoise.param";
+            modelPath = modelPath + "/up" + std::to_string(scale) + "x-no-denoise.bin";
         }
         else
         {
-            paramPath = modelDir + "/up" + std::to_string(scale) + "x-denoise" + std::to_string(noise) + "x.param";
-            modelPath = modelDir + "/up" + std::to_string(scale) + "x-denoise" + std::to_string(noise) + "x.bin";
+            paramPath = modelPath + "/up" + std::to_string(scale) + "x-denoise" + std::to_string(noise) + "x.param";
+            modelPath = modelPath + "/up" + std::to_string(scale) + "x-denoise" + std::to_string(noise) + "x.bin";
         }
 
-        std::ifstream ifs{ paramPath };
-        if (!ifs.is_open())
-            throw "failed to load model";
+        // Try current directory first
+        modelDir = "./models";
+        std::ifstream ifs{ modelDir + paramPath };
+        if (!ifs.is_open()) {
+            modelDir = get_plugin_directory() + "/models";
+            std::ifstream ifs2{ modelDir + paramPath };
+            if (!ifs2.is_open())
+                throw ("failed to load model from " + modelDir).c_str();
+            ifs2.close();
+        }
         ifs.close();
+
+        paramPath = modelDir + paramPath;
+        modelPath = modelDir + modelPath;
 
         d->realcugan = std::make_unique<RealCUGAN>(gpuId, tta, 1);
 
@@ -243,7 +317,7 @@ static AVS_Value AVSC_CC Create_realcugan(AVS_ScriptEnvironment* env, AVS_Value 
         MultiByteToWideChar(CP_UTF8, 0, modelPath.c_str(), -1, wmodelPath.data(), modelBufferSize);
         d->realcugan->load(wparamPath.data(), wmodelPath.data()); //! , fp32);
 #else
-        d->realcugan->load(paramPath, modelPath, fp32);
+        d->realcugan->load(paramPath, modelPath); //! , fp32);
 #endif
 
         d->realcugan->noise = noise;
