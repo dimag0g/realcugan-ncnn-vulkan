@@ -20,7 +20,7 @@ This package includes all the binaries and models required. It is portable, so n
 LoadPlugin("AviSynthPlus-realcugan-x64.dll")
 FFVideoSource("test.mkv") # or AviSource("test.avi")
 ConvertToRGB32()
-realcugan(noise=0, scale=2)
+realcugan(noise=0, scale=2, gpu_thread=1)
 ConvertToYV12(matrix="PC.709")
 ```
 
@@ -106,17 +106,21 @@ LanczosResize(width * 2, height * 2)
 ### Upscale 2x with Real-CUGAN
 
 ```shell
-realcugan(noise=0, scale=2)
+realcugan(noise=0, scale=2, gpu_thread=1)
 ```
 
 ![realcugan](images/2.png)
 
-## Original Real-CUGAN Project
+## Original Projects
 
 Real-CUGAN (Real Cascade U-Nets for Anime Image Super Resolution)
 
 - https://github.com/bilibili/ailab/tree/main/Real-CUGAN
 - https://github.com/nihui/realcugan-ncnn-vulkan
+
+Waifu2x AviSynth+ plugin used as a base
+
+- https://github.com/Asd-g/AviSynthPlus-w2xncnnvk
 
 ## Other Open-Source Code Used
 
@@ -124,4 +128,3 @@ Real-CUGAN (Real Cascade U-Nets for Anime Image Super Resolution)
 - https://github.com/webmproject/libwebp for encoding and decoding Webp images on ALL PLATFORMS
 - https://github.com/nothings/stb for decoding and encoding image on Linux / MacOS
 - https://github.com/tronkko/dirent for listing files in directory on Windows
-- https://github.com/boostorg/boost for loading shared libraries at runtime
