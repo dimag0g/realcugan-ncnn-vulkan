@@ -1,9 +1,6 @@
 # Real-CUGAN ncnn Vulkan
 
-:exclamation: :exclamation: :exclamation: This software is in the early development stage, it may bite your cat
-
-![CI](https://github.com/nihui/realcugan-ncnn-vulkan/workflows/CI/badge.svg)
-![download](https://img.shields.io/github/downloads/nihui/realcugan-ncnn-vulkan/total.svg)
+![CI](https://github.com/dimag0g/realcugan-ncnn-vulkan/actions/workflows/CI.yml/badge.svg?branch=master)
 
 ncnn implementation of Real-CUGAN converter. Runs fast on Intel / AMD / Nvidia / Apple-Silicon with Vulkan API.
 
