@@ -23,9 +23,9 @@ find_path(AvisynthPlus_INCLUDE_DIR
   HINTS
     # Allow a specific root directory to be provided as a hint
     ENV AVISYNTHPLUS_ROOT
-    ${AVISYNTHPLUS_ROOT_DIR}
+    ${AVISYNTHPLUS_ROOT_DIR}/include
     "C:/Program Files (x86)/AviSynth+/FilterSDK/include"
-	/usr/local/include
+    /usr/local/include
   PATH_SUFFIXES
     # For namespaced layouts like /usr/include/avisynth/avisynth.h
     include/avisynth
@@ -47,13 +47,15 @@ endif()
 find_path(AvisynthPlus_LIB_DIR
   NAMES
     avisynth.lib
-	libavisynth.so
+    avisynth.dll
+    libavisynth.so
+    libavisynth.dylib
   HINTS
     # Allow a specific root directory to be provided as a hint
     ENV AVISYNTHPLUS_ROOT
     ${AVISYNTHPLUS_ROOT_DIR}
     ${DEFAULT_LIB_DIR_WIN32}
-	/usr/local/lib
+    /usr/local/lib
 )
 
 # 2. Handle the standard arguments for find_package
@@ -74,11 +76,18 @@ if(AvisynthPlus_FOUND)
     set_target_properties(AvsCore PROPERTIES
       INTERFACE_INCLUDE_DIRECTORIES "${AvisynthPlus_INCLUDE_DIR}"
     )
-    if(WIN32)
-        set_target_properties(AvsCore PROPERTIES INTERFACE_LINK_LIBRARIES "${AvisynthPlus_LIB_DIR}/avisynth.lib")
+    if(EXISTS "${AvisynthPlus_LIB_DIR}/avisynth.lib")
+        set(AVS_LINK_TARGET "${AvisynthPlus_LIB_DIR}/avisynth.lib")
+    elseif(WIN32)
+        set(AVS_LINK_TARGET "${AvisynthPlus_LIB_DIR}/avisynth.dll")
+    elseif(APPLE)
+        set(AVS_LINK_TARGET "${AvisynthPlus_LIB_DIR}/libavisynth.dylib")
     else()
-	    set_target_properties(AvsCore PROPERTIES INTERFACE_LINK_LIBRARIES "${AvisynthPlus_LIB_DIR}/libavisynth.so")
+        set(AVS_LINK_TARGET "${AvisynthPlus_LIB_DIR}/libavisynth.so")
     endif()
+    set_target_properties(AvsCore PROPERTIES
+        INTERFACE_LINK_LIBRARIES "${AVS_LINK_TARGET}"
+    )
   else()
     # If the target DOES exist (it's our placeholder), it is NOT imported.
     target_include_directories(AvsCore INTERFACE "${AvisynthPlus_INCLUDE_DIR}")

@@ -13,14 +13,32 @@ jobs:
     - name: install
       uses: msys2/setup-msys2@v2
       with:
-        msystem: CLANG64
         update: true
-        install: mingw-w64-clang-x86_64-toolchain mingw-w64-clang-x86_64-cmake mingw-w64-clang-x86_64-vulkan-devel mingw-w64-clang-x86_64-glslang
+        install: mingw-w64-x86_64-toolchain mingw-w64-x86_64-cmake git mingw-w64-x86_64-vulkan-devel mingw-w64-x86_64-glslang
+    - name: cache-deps
+      uses: actions/cache@v4
+      with:
+        path: build-deps
+        key: avs-v3.7.5-${{ runner.os }}
+        restore-keys: |
+          avs-v3.7.5-
+    - name: build-deps
+      shell: msys2 {0}
+      run: |
+        mkdir -p build-deps; cd build-deps
+        if [ ! -d AviSynthPlus ]; then
+          git clone --branch v3.7.5 --depth 1 https://github.com/AviSynth/AviSynthPlus
+          cd AviSynthPlus
+          git submodule update --init --recursive
+        else
+          cd AviSynthPlus
+        fi
+        cmake . && cmake --build . -j 2
     - name: build
       shell: msys2 {0}
       run: |
-        mkdir -p build; cd build
-        cmake ../src -DCMAKE_CXX_FLAGS="-include cstdint"
+        mkdir build; cd build
+        cmake ../src -DAVISYNTHPLUS_ROOT_DIR=../build-deps/AviSynthPlus/avs_core
         cmake --build . -j 2
 
   ubuntu:
@@ -32,20 +50,30 @@ jobs:
     - name: install
       run: |
         sudo apt-get update
-        sudo apt-get install libvulkan-dev glslang-tools vulkan-tools mesa-vulkan-drivers imagemagick-6.q16
+        sudo apt-get install libvulkan-dev glslang-tools vulkan-tools
+    - name: cache-deps
+      uses: actions/cache@v4
+      with:
+        path: build-deps
+        key: avs-v3.7.5-${{ runner.os }}
+        restore-keys: |
+          avs-v3.7.5-
+    - name: build-deps
+      run: |
+        mkdir -p build-deps; cd build-deps
+        if [ ! -d AviSynthPlus ]; then
+          git clone --branch v3.7.5 --depth 1 https://github.com/AviSynth/AviSynthPlus
+          cd AviSynthPlus
+          git submodule update --init --recursive
+        else
+          cd AviSynthPlus
+        fi
+        cmake . && cmake --build . -j 2
     - name: build
       run: |
-        mkdir -p build; cd build
-        cmake ../src
+        mkdir -p build && cd build
+        cmake ../src -DAVISYNTHPLUS_ROOT_DIR=../build-deps/AviSynthPlus/avs_core
         cmake --build . -j 2
-    - name: test
-      run: |
-        cd build
-        ln -s ../models/models-se models-se
-        ln -s ../models/models-nose models-nose
-        ln -s ../models/models-pro models-pro
-        cp ../scripts/test.sh test.sh
-        ./test.sh
 
   macos:
     runs-on: macos-latest
@@ -56,8 +84,26 @@ jobs:
     - name: install
       run: |
         brew install vulkan-volk glslang
+    - name: cache-deps
+      uses: actions/cache@v4
+      with:
+        path: build-deps
+        key: avs-v3.7.5-${{ runner.os }}
+        restore-keys: |
+          avs-v3.7.5-
+    - name: build-deps
+      run: |
+        mkdir -p build-deps; cd build-deps
+        if [ ! -d AviSynthPlus ]; then
+          git clone --branch v3.7.5 --depth 1 https://github.com/AviSynth/AviSynthPlus
+          cd AviSynthPlus
+          git submodule update --init --recursive
+        else
+          cd AviSynthPlus
+        fi
+        cmake . && cmake --build . -j 2
     - name: build
       run: |
         mkdir -p build; cd build
-        cmake ../src
+        cmake ../src -DAVISYNTHPLUS_ROOT_DIR=../build-deps/AviSynthPlus/avs_core
         cmake --build . -j 2

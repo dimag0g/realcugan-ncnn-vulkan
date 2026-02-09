@@ -1,0 +1,5 @@
+LoadPlugin("libAviSynthPlus-realcugan.dll")
+ColorBars(width=320, height=200)
+ConvertToRGB32()
+realcugan(scale=2)
+ConvertToYV12(matrix="PC.709")
