@@ -18,7 +18,7 @@ jobs:
     - name: build
       shell: msys2 {0}
       run: |
-        mkdir build; cd build
+        mkdir -p build; cd build
         cmake ../src -DCMAKE_CXX_FLAGS="-include cstdint"
         cmake --build . -j 2
 
@@ -31,12 +31,20 @@ jobs:
     - name: install
       run: |
         sudo apt-get update
-        sudo apt-get install libvulkan-dev glslang-tools
+        sudo apt-get install libvulkan-dev glslang-tools vulkan-tools mesa-vulkan-drivers imagemagick-6.q16
     - name: build
       run: |
-        mkdir build && cd build
+        mkdir -p build; cd build
         cmake ../src
         cmake --build . -j 2
+    - name: test
+      run: |
+        cd build
+        ln -s ../models/models-se models-se
+        ln -s ../models/models-nose models-nose
+        ln -s ../models/models-pro models-pro
+        cp ../scripts/test.sh test.sh
+        ./test.sh
 
   macos:
     runs-on: macos-latest
@@ -49,6 +57,6 @@ jobs:
         brew install vulkan-volk glslang
     - name: build
       run: |
-        mkdir build && cd build
+        mkdir -p build; cd build
         cmake ../src
         cmake --build . -j 2
